@@ -1,0 +1,11 @@
+/build*/
+/deploy/
+/package/
+/vcpkg/
+/vcpkg_installed/
+/dist/
+/src/libs/onnxruntime/
+/.idea/
+/.vscode/
+.DS_Store
+

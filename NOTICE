@@ -1,0 +1,16 @@
+GameInfer Desktop
+Copyright 2026 FutureIdiot contributors
+
+This product includes software derived from OpenVPI dataset-tools:
+https://github.com/openvpi/dataset-tools
+Copyright OpenVPI contributors
+Licensed under the Apache License, Version 2.0.
+
+This product integrates the GAME inference system and compatible model files:
+https://github.com/openvpi/GAME
+Copyright OpenVPI contributors
+Licensed under the MIT License.
+
+GameInfer Desktop is an independently maintained derivative distribution and
+is not an official OpenVPI release.
+

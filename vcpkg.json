@@ -1,0 +1,21 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "gameinfer-desktop",
+  "version-string": "0.1.0",
+  "dependencies": [
+    "libflac",
+    "libsndfile",
+    "mpg123",
+    "nlohmann-json",
+    "sdl2",
+    "soxr",
+    "wolf-midi",
+    "xsimd"
+  ],
+  "vcpkg-configuration": {
+    "overlay-triplets": [
+      "scripts/vcpkg/triplets"
+    ]
+  }
+}
+

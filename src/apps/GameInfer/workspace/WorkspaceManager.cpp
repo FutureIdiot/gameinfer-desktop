@@ -13,6 +13,8 @@
 #include <algorithm>
 #include <utility>
 
+#include "utils/AppPaths.h"
+
 namespace
 {
     const QString MarkerName = QStringLiteral(".gameinfer-managed");
@@ -48,11 +50,11 @@ namespace
 }
 
 QString WorkspaceManager::defaultSliceDirectory() {
-    return QDir(QApplication::applicationDirPath()).filePath(QStringLiteral("workspace/slice"));
+    return QDir(AppPaths::workspaceDirectory()).filePath(QStringLiteral("slice"));
 }
 
 QString WorkspaceManager::defaultSeparatorDirectory() {
-    return QDir(QApplication::applicationDirPath()).filePath(QStringLiteral("workspace/separators"));
+    return QDir(AppPaths::workspaceDirectory()).filePath(QStringLiteral("separators"));
 }
 
 QString WorkspaceManager::sliceDirectory(const QSettings *settings) {

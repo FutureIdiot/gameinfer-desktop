@@ -8,6 +8,7 @@
 #include <QDragMoveEvent>
 #include <QDropEvent>
 #include <QEvent>
+#include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QDirIterator>
@@ -35,6 +36,7 @@
 #include <wolf-midi/MidiFile.h>
 
 #include "utils/DmlGpuUtils.h"
+#include "utils/AppPaths.h"
 #include "separator/SeparatorSettingsDialog.h"
 #include "ManualSliceDialog.h"
 #include "workspace/WorkspaceManager.h"
@@ -330,9 +332,17 @@ void MainWidget::setupSeparatorGroup() {
 
     m_separatorModelDirectoryLabel = new QLabel(tr("Model cache:"), m_separatorGroup);
     m_separatorModelDirectoryEdit = new QLineEdit(m_separatorGroup);
+    const QString defaultSeparatorModelDirectory = AppPaths::separatorModelDirectory();
+    QDir().mkpath(defaultSeparatorModelDirectory);
+    const QString bundledDefaultModel =
+        QDir(AppPaths::bundledDataDirectory()).filePath(QStringLiteral("model/separator/") + DefaultSeparatorModel);
+    const QString cachedDefaultModel = QDir(defaultSeparatorModelDirectory).filePath(DefaultSeparatorModel);
+    if (QFileInfo::exists(bundledDefaultModel) && !QFileInfo::exists(cachedDefaultModel) &&
+        QDir::cleanPath(bundledDefaultModel) != QDir::cleanPath(cachedDefaultModel)) {
+        QFile::copy(bundledDefaultModel, cachedDefaultModel);
+    }
     m_separatorModelDirectoryEdit->setText(
-        m_settings->value("Separator/modelDirectory", QApplication::applicationDirPath() + "/model/separator")
-            .toString());
+        m_settings->value("Separator/modelDirectory", defaultSeparatorModelDirectory).toString());
     m_separatorBrowseDirectoryButton = new QPushButton(tr("Browse..."), m_separatorGroup);
     layout->addWidget(m_separatorModelDirectoryLabel, 1, 0);
     layout->addWidget(m_separatorModelDirectoryEdit, 1, 1, 1, 3);
@@ -416,7 +426,8 @@ void MainWidget::setupModelGroup() {
 
     const QString savedModelPath = m_settings->value("MainWidget/modelPath", "").toString();
     if (savedModelPath.isEmpty()) {
-        m_modelPathEdit->setText(QApplication::applicationDirPath() + "/model/GAME-1.0.3-small-onnx");
+        m_modelPathEdit->setText(
+            QDir(AppPaths::bundledDataDirectory()).filePath(QStringLiteral("model/GAME-1.0.3-small-onnx")));
     } else {
         m_modelPathEdit->setText(savedModelPath);
     }
@@ -1665,7 +1676,7 @@ SeparatorWorkerConfiguration MainWidget::currentSeparatorConfiguration() const {
 }
 
 QString MainWidget::separatorWorkerScriptPath() const {
-    return QDir(QApplication::applicationDirPath())
+    return QDir(AppPaths::bundledDataDirectory())
         .filePath(QStringLiteral("separator-worker/separator_worker.py"));
 }
 

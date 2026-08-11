@@ -14,13 +14,15 @@
 
 #include <iostream>
 
+#include "utils/AppPaths.h"
+
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent), m_settings(nullptr), m_statusLabel(nullptr), m_progressBar(nullptr) {
     resize(1100, 700);
     setMinimumSize(800, 560);
 
     // Setup settings
-    const QString configDirPath = QApplication::applicationDirPath() + "/config";
+    const QString configDirPath = AppPaths::configDirectory();
     if (const QDir configDir(configDirPath); !configDir.exists()) {
         if (!configDir.mkpath(".")) {
             QMessageBox::critical(this, QApplication::applicationName(),

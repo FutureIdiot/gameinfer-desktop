@@ -10,6 +10,8 @@
 
 #include <algorithm>
 
+#include "utils/AppPaths.h"
+
 namespace
 {
     constexpr int StartTimeoutMs = 30000;
@@ -60,7 +62,7 @@ bool SeparatorWorkerClient::start(const SeparatorWorkerConfiguration &configurat
         return false;
     }
 
-    const QString applicationDirectory = QCoreApplication::applicationDirPath();
+    const QString applicationDirectory = AppPaths::bundledDataDirectory();
 #ifdef Q_OS_WIN
     const QString executableSuffix = QStringLiteral(".exe");
 #else

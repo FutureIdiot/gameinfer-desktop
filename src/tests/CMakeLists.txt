@@ -16,8 +16,13 @@ add_executable(TestGameInferWorkspace
         gameinfer_workspace_test.cpp
         ../apps/GameInfer/workspace/WorkspaceManager.cpp
         ../apps/GameInfer/workspace/WorkspaceManager.h
+        ../apps/GameInfer/utils/AppPaths.cpp
+        ../apps/GameInfer/utils/AppPaths.h
 )
-target_include_directories(TestGameInferWorkspace PRIVATE ../apps/GameInfer/workspace)
+target_include_directories(TestGameInferWorkspace PRIVATE
+        ../apps/GameInfer/workspace
+        ../apps/GameInfer
+)
 target_link_libraries(TestGameInferWorkspace PRIVATE
         Qt${QT_VERSION_MAJOR}::Core
         Qt${QT_VERSION_MAJOR}::Widgets

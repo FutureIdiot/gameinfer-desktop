@@ -36,7 +36,12 @@ set(SEPARATOR_WORKER_FILES
 )
 target_sources(${PROJECT_NAME} PRIVATE ${SEPARATOR_WORKER_FILES})
 set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY LINK_DEPENDS ${SEPARATOR_WORKER_FILES})
-set(SEPARATOR_WORKER_OUTPUT_DIR "$<TARGET_FILE_DIR:${PROJECT_NAME}>/separator-worker")
+if (APPLE)
+    set(GAMEINFER_BUNDLED_DATA_OUTPUT_DIR "$<TARGET_BUNDLE_DIR:${PROJECT_NAME}>/Contents/Resources")
+else ()
+    set(GAMEINFER_BUNDLED_DATA_OUTPUT_DIR "$<TARGET_FILE_DIR:${PROJECT_NAME}>")
+endif ()
+set(SEPARATOR_WORKER_OUTPUT_DIR "${GAMEINFER_BUNDLED_DATA_OUTPUT_DIR}/separator-worker")
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E make_directory ${SEPARATOR_WORKER_OUTPUT_DIR}
 )
@@ -54,7 +59,7 @@ find_program(GAMEINFER_SEPARATOR_UV_EXECUTABLE NAMES uv
 if (GAMEINFER_SEPARATOR_UV_EXECUTABLE)
     get_filename_component(GAMEINFER_SEPARATOR_UV_REALPATH
             "${GAMEINFER_SEPARATOR_UV_EXECUTABLE}" REALPATH)
-    set(SEPARATOR_RUNTIME_OUTPUT_DIR "$<TARGET_FILE_DIR:${PROJECT_NAME}>/separator-runtime")
+    set(SEPARATOR_RUNTIME_OUTPUT_DIR "${GAMEINFER_BUNDLED_DATA_OUTPUT_DIR}/separator-runtime")
     add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E make_directory ${SEPARATOR_RUNTIME_OUTPUT_DIR}
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -77,7 +82,7 @@ if (GAMEINFER_SEPARATOR_DEFAULT_MODEL AND EXISTS "${GAMEINFER_SEPARATOR_DEFAULT_
             "${GAMEINFER_SEPARATOR_DEFAULT_MODEL}" REALPATH)
     get_filename_component(GAMEINFER_SEPARATOR_DEFAULT_MODEL_NAME
             "${GAMEINFER_SEPARATOR_DEFAULT_MODEL_REALPATH}" NAME)
-    set(SEPARATOR_MODEL_OUTPUT_DIR "$<TARGET_FILE_DIR:${PROJECT_NAME}>/model/separator")
+    set(SEPARATOR_MODEL_OUTPUT_DIR "${GAMEINFER_BUNDLED_DATA_OUTPUT_DIR}/model/separator")
     set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY LINK_DEPENDS
             "${GAMEINFER_SEPARATOR_DEFAULT_MODEL_REALPATH}")
     add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
@@ -90,16 +95,50 @@ elseif (GAMEINFER_REQUIRE_SEPARATOR_DEFAULT_MODEL)
     message(FATAL_ERROR "GameInfer separator model: bundled default model is required but unavailable")
 endif ()
 
+set(GAMEINFER_DEFAULT_GAME_MODEL_DIR "" CACHE PATH
+        "Optional GAME model directory to bundle as GameInfer's small default")
+option(GAMEINFER_REQUIRE_DEFAULT_GAME_MODEL
+        "Fail configuration when the bundled default GAME model is unavailable" OFF)
+set(GAMEINFER_GAME_MODEL_REQUIRED_FILES
+        config.json encoder.onnx segmenter.onnx bd2dur.onnx dur2bd.onnx estimator.onnx)
+if (GAMEINFER_DEFAULT_GAME_MODEL_DIR AND IS_DIRECTORY "${GAMEINFER_DEFAULT_GAME_MODEL_DIR}")
+    get_filename_component(GAMEINFER_DEFAULT_GAME_MODEL_REALPATH
+            "${GAMEINFER_DEFAULT_GAME_MODEL_DIR}" REALPATH)
+    get_filename_component(GAMEINFER_DEFAULT_GAME_MODEL_NAME
+            "${GAMEINFER_DEFAULT_GAME_MODEL_REALPATH}" NAME)
+    foreach (_model_file IN LISTS GAMEINFER_GAME_MODEL_REQUIRED_FILES)
+        if (NOT EXISTS "${GAMEINFER_DEFAULT_GAME_MODEL_REALPATH}/${_model_file}")
+            message(FATAL_ERROR "GameInfer GAME model: required file is missing: ${_model_file}")
+        endif ()
+        set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY LINK_DEPENDS
+                "${GAMEINFER_DEFAULT_GAME_MODEL_REALPATH}/${_model_file}")
+    endforeach ()
+    set(GAMEINFER_GAME_MODEL_OUTPUT_DIR
+            "${GAMEINFER_BUNDLED_DATA_OUTPUT_DIR}/model/${GAMEINFER_DEFAULT_GAME_MODEL_NAME}")
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory "${GAMEINFER_GAME_MODEL_OUTPUT_DIR}"
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${GAMEINFER_DEFAULT_GAME_MODEL_REALPATH}"
+            "${GAMEINFER_GAME_MODEL_OUTPUT_DIR}"
+    )
+elseif (GAMEINFER_REQUIRE_DEFAULT_GAME_MODEL)
+    message(FATAL_ERROR "GameInfer GAME model: bundled default model is required but unavailable")
+endif ()
+
 if (APPLE)
-    install(FILES ${SEPARATOR_WORKER_FILES} DESTINATION GameInfer.app/Contents/MacOS/separator-worker)
+    install(FILES ${SEPARATOR_WORKER_FILES} DESTINATION GameInfer.app/Contents/Resources/separator-worker)
     if (GAMEINFER_SEPARATOR_UV_EXECUTABLE)
         install(PROGRAMS "${GAMEINFER_SEPARATOR_UV_REALPATH}"
-                DESTINATION GameInfer.app/Contents/MacOS/separator-runtime
+                DESTINATION GameInfer.app/Contents/Resources/separator-runtime
                 RENAME uv)
     endif ()
     if (GAMEINFER_SEPARATOR_DEFAULT_MODEL_REALPATH)
         install(FILES "${GAMEINFER_SEPARATOR_DEFAULT_MODEL_REALPATH}"
-                DESTINATION GameInfer.app/Contents/MacOS/model/separator)
+                DESTINATION GameInfer.app/Contents/Resources/model/separator)
+    endif ()
+    if (GAMEINFER_DEFAULT_GAME_MODEL_REALPATH)
+        install(DIRECTORY "${GAMEINFER_DEFAULT_GAME_MODEL_REALPATH}"
+                DESTINATION GameInfer.app/Contents/Resources/model)
     endif ()
 else ()
     install(FILES ${SEPARATOR_WORKER_FILES} DESTINATION separator-worker)
@@ -110,6 +149,9 @@ else ()
     endif ()
     if (GAMEINFER_SEPARATOR_DEFAULT_MODEL_REALPATH)
         install(FILES "${GAMEINFER_SEPARATOR_DEFAULT_MODEL_REALPATH}" DESTINATION model/separator)
+    endif ()
+    if (GAMEINFER_DEFAULT_GAME_MODEL_REALPATH)
+        install(DIRECTORY "${GAMEINFER_DEFAULT_GAME_MODEL_REALPATH}" DESTINATION model)
     endif ()
 endif ()
 
@@ -140,7 +182,13 @@ if (WIN32)
 endif ()
 
 if (APPLE)
-    set_target_properties(${PROJECT_NAME} PROPERTIES MACOSX_BUNDLE TRUE)
+    set_target_properties(${PROJECT_NAME} PROPERTIES
+            MACOSX_BUNDLE TRUE
+            MACOSX_BUNDLE_BUNDLE_NAME "GameInfer"
+            MACOSX_BUNDLE_GUI_IDENTIFIER "com.futureidiot.gameinfer"
+            MACOSX_BUNDLE_SHORT_VERSION_STRING "0.0.1"
+            MACOSX_BUNDLE_BUNDLE_VERSION "1"
+    )
 endif ()
 
 set_property(TARGET DeployedTargets APPEND PROPERTY TARGETS ${PROJECT_NAME})

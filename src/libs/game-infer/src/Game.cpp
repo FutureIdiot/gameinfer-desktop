@@ -93,7 +93,11 @@ namespace Game
     }
 
     bool Game::get_midi(const std::filesystem::path &filepath, std::vector<GameMidi> &midis, const float tempo,
-                        std::string &msg, const std::function<void(int)> &progressChanged, int max_audio_length) const {
+                        std::string &msg, const std::function<void(int)> &progressChanged, int max_audio_length,
+                        MidiFailureDetails *failureDetails) const {
+        if (failureDetails != nullptr) {
+            *failureDetails = {};
+        }
         if (!m_gameModel) {
             return false;
         }
@@ -131,6 +135,11 @@ namespace Game
             double sliceDuration = static_cast<double>(frameCount) / tar_sr;
 
             if (sliceDuration > max_audio_length) {
+                if (failureDetails != nullptr) {
+                    failureDetails->reason = MidiFailureReason::SliceTooLong;
+                    failureDetails->sliceStartSeconds = static_cast<double>(beginFrame) / tar_sr;
+                    failureDetails->sliceEndSeconds = static_cast<double>(endFrame) / tar_sr;
+                }
                 msg = "Slice duration exceeds " + std::to_string(max_audio_length) +
                     " seconds: " + std::to_string(sliceDuration) +
                     "s.\nPlease check whether the accompaniment has been removed from the current audio.";

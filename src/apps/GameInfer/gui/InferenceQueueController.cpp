@@ -32,6 +32,10 @@ quint64 InferenceQueueController::addJob(QueueJob job) {
     job.error.clear();
     job.vocalsPath.clear();
     job.instrumentalPath.clear();
+    job.failureReason = QueueFailureReason::None;
+    job.failedSliceStartSeconds = 0.0;
+    job.failedSliceEndSeconds = 0.0;
+    job.managedArtifacts.clear();
     m_jobs.push_back(std::move(job));
     emit jobsChanged();
     return m_jobs.constLast().id;
@@ -50,9 +54,8 @@ bool InferenceQueueController::updateJob(const quint64 id, const QueueJob &job) 
     QueueJob updated = job;
     updated.id = id;
     const QueueJob &previous = m_jobs[index];
-    const bool separationArtifactStillApplies = updated.inputPath == previous.inputPath &&
-                                                updated.outputPath == previous.outputPath &&
-                                                !previous.vocalsPath.isEmpty();
+    const bool separationArtifactStillApplies =
+        updated.inputPath == previous.inputPath && !previous.vocalsPath.isEmpty();
     if (previous.status == QueueJobStatus::Completed) {
         updated.status = QueueJobStatus::Completed;
     } else if (separationArtifactStillApplies &&
@@ -63,11 +66,15 @@ bool InferenceQueueController::updateJob(const quint64 id, const QueueJob &job) 
         updated.status = QueueJobStatus::Pending;
     }
     updated.failureStage = QueueFailureStage::None;
+    updated.failureReason = QueueFailureReason::None;
+    updated.failedSliceStartSeconds = 0.0;
+    updated.failedSliceEndSeconds = 0.0;
     updated.progress = updated.status == QueueJobStatus::Completed ? 100 : 0;
     updated.error.clear();
     if (updated.status == QueueJobStatus::Pending) {
         updated.vocalsPath.clear();
         updated.instrumentalPath.clear();
+        updated.managedArtifacts.clear();
     }
     m_jobs[index] = std::move(updated);
     emit jobsChanged();
@@ -84,6 +91,38 @@ bool InferenceQueueController::removeJob(const quint64 id) {
         return false;
     }
     m_jobs.removeAt(index);
+    emit jobsChanged();
+    return true;
+}
+
+bool InferenceQueueController::replaceFailedJobWithSlices(const quint64 id, QueueJob first, QueueJob second) {
+    if (m_running) {
+        return false;
+    }
+    const int index = indexOf(id);
+    if (index < 0 || m_jobs[index].status != QueueJobStatus::Failed ||
+        m_jobs[index].failureReason != QueueFailureReason::SliceTooLong) {
+        return false;
+    }
+
+    const auto prepare = [this](QueueJob &job) {
+        job.id = m_nextId++;
+        job.status = QueueJobStatus::Separated;
+        job.failureStage = QueueFailureStage::None;
+        job.failureReason = QueueFailureReason::None;
+        job.failedSliceStartSeconds = 0.0;
+        job.failedSliceEndSeconds = 0.0;
+        job.progress = 0;
+        job.error.clear();
+        job.vocalsPath = job.inputPath;
+        job.instrumentalPath.clear();
+    };
+    prepare(first);
+    prepare(second);
+
+    m_jobs.removeAt(index);
+    m_jobs.insert(index, std::move(second));
+    m_jobs.insert(index, std::move(first));
     emit jobsChanged();
     return true;
 }
@@ -143,6 +182,9 @@ void InferenceQueueController::resetFailedJobs() {
                 job.instrumentalPath.clear();
             }
             job.failureStage = QueueFailureStage::None;
+            job.failureReason = QueueFailureReason::None;
+            job.failedSliceStartSeconds = 0.0;
+            job.failedSliceEndSeconds = 0.0;
             job.progress = 0;
             job.error.clear();
             changed = true;
@@ -227,7 +269,7 @@ bool InferenceQueueController::startPipeline(const bool separationEnabled, Separ
         }
 
         if (!stopped) {
-            for (const auto &job : pendingJobs) {
+            for (auto &job : pendingJobs) {
                 if (separationEnabled && job.status != QueueJobStatus::Separated) {
                     continue;
                 }
@@ -264,11 +306,7 @@ bool InferenceQueueController::startPipeline(const bool separationEnabled, Separ
 
                 QMetaObject::invokeMethod(
                     this,
-                    [this, id = job.id, success, error] {
-                        updateJobState(id, success ? QueueJobStatus::Completed : QueueJobStatus::Failed,
-                                       success ? 100 : 0, error,
-                                       success ? QueueFailureStage::None : QueueFailureStage::Midi);
-                    },
+                    [this, job, success, error] { updateJobMidi(job.id, success, job, error); },
                     Qt::QueuedConnection);
 
                 if (m_stopRequested.load()) {
@@ -332,6 +370,26 @@ void InferenceQueueController::updateJobSeparation(const quint64 id, const bool 
     m_jobs[index].error = error;
     m_jobs[index].vocalsPath = job.vocalsPath;
     m_jobs[index].instrumentalPath = job.instrumentalPath;
+    m_jobs[index].managedArtifacts = job.managedArtifacts;
+    emit jobsChanged();
+}
+
+void InferenceQueueController::updateJobMidi(const quint64 id, const bool success, const QueueJob &job,
+                                             const QString &error) {
+    const int index = indexOf(id);
+    if (index < 0) {
+        return;
+    }
+    m_jobs[index].status = success ? QueueJobStatus::Completed : QueueJobStatus::Failed;
+    m_jobs[index].failureStage = success ? QueueFailureStage::None : QueueFailureStage::Midi;
+    m_jobs[index].failureReason = success ? QueueFailureReason::None : job.failureReason;
+    m_jobs[index].failedSliceStartSeconds = success ? 0.0 : job.failedSliceStartSeconds;
+    m_jobs[index].failedSliceEndSeconds = success ? 0.0 : job.failedSliceEndSeconds;
+    m_jobs[index].progress = success ? 100 : 0;
+    m_jobs[index].error = error;
+    m_jobs[index].vocalsPath = job.vocalsPath;
+    m_jobs[index].instrumentalPath = job.instrumentalPath;
+    m_jobs[index].managedArtifacts = job.managedArtifacts;
     emit jobsChanged();
 }
 

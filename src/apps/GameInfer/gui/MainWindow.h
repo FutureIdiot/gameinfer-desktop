@@ -49,6 +49,7 @@ private:
     QActionGroup *m_languageActionGroup = nullptr;
     QAction *m_chineseAction = nullptr;
     QAction *m_englishAction = nullptr;
+    QAction *m_workspaceAction = nullptr;
 
     std::shared_ptr<Game::Game> m_game;
 

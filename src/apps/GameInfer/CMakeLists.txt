@@ -14,6 +14,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
         Qt${QT_VERSION_MAJOR}::Widgets
         Qt${QT_VERSION_MAJOR}::Concurrent
         game-infer::game-infer
+        SDLPlayback
 )
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE

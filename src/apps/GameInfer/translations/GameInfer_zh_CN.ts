@@ -257,6 +257,14 @@
         <translation>队列已完成。</translation>
     </message>
     <message>
+        <source>Workspace paths</source>
+        <translation>工作区路径</translation>
+    </message>
+    <message>
+        <source>Workspace settings cannot be changed while the queue is running.</source>
+        <translation>队列运行时无法更改工作区设置。</translation>
+    </message>
+    <message>
         <source>Use GPU</source>
         <translation>使用 GPU</translation>
     </message>
@@ -394,7 +402,7 @@
     </message>
     <message>
         <source>Multiple tasks use the same separated audio path: %1</source>
-        <translation>多个任务使用了相同的分离音频路径：%1</translation>
+        <translation type="vanished">多个任务使用了相同的分离音频路径：%1</translation>
     </message>
     <message>
         <source>There are no pending tasks to run.</source>
@@ -445,6 +453,26 @@ Overwrite them?</source>
         <translation>音源分离失败。</translation>
     </message>
     <message>
+        <source>Manual split</source>
+        <translation>手动裁切</translation>
+    </message>
+    <message>
+        <source>This task is no longer available for manual splitting.</source>
+        <translation>此任务已无法进行手动裁切。</translation>
+    </message>
+    <message>
+        <source>Failed to replace the original failed task.</source>
+        <translation>替换原失败任务时出错。</translation>
+    </message>
+    <message>
+        <source>Manual split completed; two MIDI tasks are ready.</source>
+        <translation>手动裁切完成，两个 MIDI 任务已就绪。</translation>
+    </message>
+    <message>
+        <source>Slice exceeds %1 s · Manually split</source>
+        <translation>切片超过 %1 秒 · 手动裁切</translation>
+    </message>
+    <message>
         <source>Separating vocals...</source>
         <translation>正在分离人声...</translation>
     </message>
@@ -459,6 +487,10 @@ Overwrite them?</source>
     <message>
         <source>Generating MIDI...</source>
         <translation>正在生成 MIDI...</translation>
+    </message>
+    <message>
+        <source>Failed to save the MIDI file: %1</source>
+        <translation>保存 MIDI 文件失败：%1</translation>
     </message>
     <message>
         <source>The queue could not be started.</source>
@@ -492,6 +524,10 @@ Overwrite them?</source>
         <translation>设置</translation>
     </message>
     <message>
+        <source>Workspace paths...</source>
+        <translation>工作区路径...</translation>
+    </message>
+    <message>
         <source>Interface language</source>
         <translation>界面语言</translation>
     </message>
@@ -502,6 +538,92 @@ Overwrite them?</source>
     <message>
         <source>English</source>
         <translation>English</translation>
+    </message>
+</context>
+<context>
+    <name>ManualSliceDialog</name>
+    <message>
+        <source>Manually split long audio</source>
+        <translation>手动裁切超长音频</translation>
+    </message>
+    <message>
+        <source>Failed to decode audio for manual slicing.</source>
+        <translation>无法解码用于手动裁切的音频。</translation>
+    </message>
+    <message>
+        <source>Failed to read the complete audio for manual slicing.</source>
+        <translation>无法完整读取用于手动裁切的音频。</translation>
+    </message>
+    <message>
+        <source>Play the audio or drag the orange playhead to a suitable cut point, then confirm. The highlighted area is the segment that exceeded the GAME limit.</source>
+        <translation>播放音频或拖动橙色指针选择合适的切点，然后确认。高亮区域是超过 GAME 限制的片段。</translation>
+    </message>
+    <message>
+        <source>Play</source>
+        <translation>播放</translation>
+    </message>
+    <message>
+        <source>Confirm split</source>
+        <translation>确认裁切</translation>
+    </message>
+    <message>
+        <source>Audio playback is unavailable; the playhead can still be dragged.</source>
+        <translation>音频播放不可用，但仍可拖动指针。</translation>
+    </message>
+    <message>
+        <source>Pause</source>
+        <translation>暂停</translation>
+    </message>
+    <message>
+        <source>Choose a cut point inside the highlighted overlong segment.</source>
+        <translation>请在高亮的超长片段内选择切点。</translation>
+    </message>
+    <message>
+        <source>%1 / %2</source>
+        <translation>%1 / %2</translation>
+    </message>
+    <message>
+        <source>Cut at %1 · Parts: %2 / %3</source>
+        <translation>切点 %1 · 两段时长：%2 / %3</translation>
+    </message>
+    <message>
+        <source>Failed to finalize the first audio slice: %1</source>
+        <translation>无法完成第一个音频切片：%1</translation>
+    </message>
+    <message>
+        <source>Failed to finalize the second audio slice: %1</source>
+        <translation>无法完成第二个音频切片：%1</translation>
+    </message>
+</context>
+<context>
+    <name>QObject</name>
+    <message>
+        <source>Failed to create an audio slice: %1</source>
+        <translation>无法创建音频切片：%1</translation>
+    </message>
+    <message>
+        <source>Failed to write the complete audio slice: %1</source>
+        <translation>无法完整写入音频切片：%1</translation>
+    </message>
+    <message>
+        <source>The workspace directory is empty.</source>
+        <translation>工作区目录为空。</translation>
+    </message>
+    <message>
+        <source>Failed to create the workspace directory: %1</source>
+        <translation>无法创建工作区目录：%1</translation>
+    </message>
+    <message>
+        <source>Failed to create the task workspace: %1</source>
+        <translation>无法创建任务工作区：%1</translation>
+    </message>
+    <message>
+        <source>Failed to initialize the task workspace: %1</source>
+        <translation>无法初始化任务工作区：%1</translation>
+    </message>
+    <message>
+        <source>Failed to remove a workspace directory: %1</source>
+        <translation>无法删除工作区目录：%1</translation>
     </message>
 </context>
 <context>
@@ -621,6 +743,61 @@ Overwrite them?</source>
     <message>
         <source>Segment-wise processing:</source>
         <translation>分段处理：</translation>
+    </message>
+</context>
+<context>
+    <name>WorkspaceSettingsDialog</name>
+    <message>
+        <source>Workspace paths</source>
+        <translation>工作区路径</translation>
+    </message>
+    <message>
+        <source>GameInfer stores temporary separated and manually sliced audio here. Successful tasks are cleaned automatically unless intermediate files are kept.</source>
+        <translation>GameInfer 在这里存放临时的分离音频和手动切片。除非选择保留中间产物，否则任务成功后会自动清理。</translation>
+    </message>
+    <message>
+        <source>Browse...</source>
+        <translation>浏览...</translation>
+    </message>
+    <message>
+        <source>Manual slices:</source>
+        <translation>手动切片：</translation>
+    </message>
+    <message>
+        <source>Select the manual slice workspace</source>
+        <translation>选择手动切片工作区</translation>
+    </message>
+    <message>
+        <source>Separated audio:</source>
+        <translation>分离音频：</translation>
+    </message>
+    <message>
+        <source>Select the separator workspace</source>
+        <translation>选择分离音频工作区</translation>
+    </message>
+    <message>
+        <source>Keep intermediate files after successful tasks</source>
+        <translation>任务成功后保留中间产物</translation>
+    </message>
+    <message>
+        <source>Clear old workspace files</source>
+        <translation>清除旧工作区产物</translation>
+    </message>
+    <message>
+        <source>Clear workspace</source>
+        <translation>清理工作区</translation>
+    </message>
+    <message>
+        <source>Delete unused GameInfer workspace files? Files required by current queue tasks will be kept.</source>
+        <translation>删除未使用的 GameInfer 工作区文件吗？当前队列任务仍需使用的文件会被保留。</translation>
+    </message>
+    <message>
+        <source>Removed %1 files (%2); kept %3 active task folders.</source>
+        <translation>已删除 %1 个文件（%2），保留 %3 个活动任务目录。</translation>
+    </message>
+    <message>
+        <source>Workspace directories cannot be empty.</source>
+        <translation>工作区目录不能为空。</translation>
     </message>
 </context>
 </TS>

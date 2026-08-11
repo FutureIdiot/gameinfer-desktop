@@ -36,6 +36,9 @@
 
 #include "utils/DmlGpuUtils.h"
 #include "separator/SeparatorSettingsDialog.h"
+#include "ManualSliceDialog.h"
+#include "workspace/WorkspaceManager.h"
+#include "workspace/WorkspaceSettingsDialog.h"
 
 static QString replaceFileExtension(const QString &filePath, const QString &newExt);
 
@@ -73,7 +76,8 @@ namespace
     }
 }
 
-static void makeMidiFile(const std::filesystem::path &midi_path, std::vector<Game::GameMidi> midis, const float tempo) {
+static bool makeMidiFile(const std::filesystem::path &midi_path, std::vector<Game::GameMidi> midis,
+                         const float tempo) {
     Midi::MidiFile midi;
     midi.setFileFormat(1);
     midi.setDivisionType(Midi::MidiFile::DivisionType::PPQ);
@@ -96,7 +100,7 @@ static void makeMidiFile(const std::filesystem::path &midi_path, std::vector<Gam
         midi.createNoteOffEvent(1, start + duration, 0, note, 64);
     }
 
-    midi.save(midi_path);
+    return midi.save(midi_path);
 }
 
 MainWidget::MainWidget(QSettings *settings, QWidget *parent)
@@ -158,6 +162,16 @@ MainWidget::MainWidget(QSettings *settings, QWidget *parent)
 MainWidget::~MainWidget() {
     delete m_queueController;
     m_queueController = nullptr;
+}
+
+void MainWidget::showWorkspaceSettings() {
+    if (m_queueController->isRunning()) {
+        QMessageBox::information(this, tr("Workspace paths"),
+                                 tr("Workspace settings cannot be changed while the queue is running."));
+        return;
+    }
+    WorkspaceSettingsDialog dialog(m_settings, protectedWorkspaceArtifacts(), this);
+    dialog.exec();
 }
 
 void MainWidget::changeEvent(QEvent *event) {
@@ -845,8 +859,92 @@ void MainWidget::updateQueueJobFromRow(const int row) {
 void MainWidget::removeSelectedQueueJob() {
     const quint64 id = selectedQueueJobId();
     if (id != 0) {
+        for (const auto &job : m_queueController->jobs()) {
+            if (job.id == id && !WorkspaceManager::keepIntermediates(m_settings)) {
+                WorkspaceManager::removeManagedArtifacts(job.managedArtifacts);
+                break;
+            }
+        }
         m_queueController->removeJob(id);
     }
+}
+
+QSet<QString> MainWidget::protectedWorkspaceArtifacts() const {
+    QSet<QString> paths;
+    for (const auto &job : m_queueController->jobs()) {
+        if (job.status == QueueJobStatus::Completed) {
+            continue;
+        }
+        for (const QString &artifact : job.managedArtifacts) {
+            paths.insert(artifact);
+        }
+    }
+    return paths;
+}
+
+void MainWidget::manualSliceFailedJob(const quint64 id) {
+    if (m_queueController->isRunning()) {
+        return;
+    }
+    std::optional<QueueJob> failedJob;
+    for (const auto &job : m_queueController->jobs()) {
+        if (job.id == id && job.status == QueueJobStatus::Failed &&
+            job.failureReason == QueueFailureReason::SliceTooLong) {
+            failedJob = job;
+            break;
+        }
+    }
+    if (!failedJob) {
+        QMessageBox::information(this, tr("Manual split"), tr("This task is no longer available for manual splitting."));
+        return;
+    }
+
+    const QString audioPath = !failedJob->vocalsPath.isEmpty() ? failedJob->vocalsPath : failedJob->inputPath;
+    ManualSliceDialog dialog(audioPath, failedJob->failedSliceStartSeconds, failedJob->failedSliceEndSeconds, this);
+    if (!dialog.isValid()) {
+        QMessageBox::critical(this, tr("Manual split"), dialog.loadError());
+        return;
+    }
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+
+    QString error;
+    const QString workspace = WorkspaceManager::createManagedDirectory(
+        WorkspaceManager::sliceDirectory(m_settings), QFileInfo(audioPath).completeBaseName(), error);
+    if (workspace.isEmpty()) {
+        QMessageBox::critical(this, tr("Manual split"), error);
+        return;
+    }
+    const QString audioStem = QFileInfo(audioPath).completeBaseName();
+    const QString firstAudio = QDir(workspace).filePath(audioStem + QStringLiteral("_part_01.wav"));
+    const QString secondAudio = QDir(workspace).filePath(audioStem + QStringLiteral("_part_02.wav"));
+    if (!dialog.writeSlices(firstAudio, secondAudio, error)) {
+        WorkspaceManager::removeManagedDirectory(workspace);
+        QMessageBox::critical(this, tr("Manual split"), error);
+        return;
+    }
+
+    const QFileInfo midiInfo(failedJob->outputPath);
+    const QString midiStem = midiInfo.completeBaseName();
+    QueueJob first = *failedJob;
+    QueueJob second = *failedJob;
+    first.inputPath = firstAudio;
+    second.inputPath = secondAudio;
+    first.outputPath = QDir(midiInfo.absolutePath()).filePath(midiStem + QStringLiteral("_part_01.mid"));
+    second.outputPath = QDir(midiInfo.absolutePath()).filePath(midiStem + QStringLiteral("_part_02.mid"));
+    first.managedArtifacts = {firstAudio};
+    second.managedArtifacts = {secondAudio};
+
+    if (!m_queueController->replaceFailedJobWithSlices(id, std::move(first), std::move(second))) {
+        WorkspaceManager::removeManagedArtifacts({firstAudio, secondAudio});
+        QMessageBox::critical(this, tr("Manual split"), tr("Failed to replace the original failed task."));
+        return;
+    }
+    if (!WorkspaceManager::keepIntermediates(m_settings)) {
+        WorkspaceManager::removeManagedArtifacts(failedJob->managedArtifacts);
+    }
+    setRuntimeStatus(tr("Manual split completed; two MIDI tasks are ready."), false);
 }
 
 void MainWidget::moveSelectedQueueJobUp() {
@@ -982,9 +1080,21 @@ void MainWidget::refreshQueueTable() {
         if (details.isEmpty() && job.status == QueueJobStatus::Separated) {
             details = tr("Vocals: %1").arg(job.vocalsPath);
         }
-        auto *detailsItem = createQueueItem(details, false);
-        detailsItem->setToolTip(details);
-        m_queueTable->setItem(row, QueueDetailsColumn, detailsItem);
+        m_queueTable->removeCellWidget(row, QueueDetailsColumn);
+        if (job.status == QueueJobStatus::Failed && job.failureReason == QueueFailureReason::SliceTooLong) {
+            auto *manualButton = new QPushButton(tr("Slice exceeds %1 s · Manually split").arg(max_audio_seg_length),
+                                                m_queueTable);
+            manualButton->setToolTip(details);
+            manualButton->setEnabled(!m_queueController->isRunning());
+            connect(manualButton, &QPushButton::clicked, this,
+                    [this, id = job.id] { manualSliceFailedJob(id); });
+            m_queueTable->setCellWidget(row, QueueDetailsColumn, manualButton);
+            m_queueTable->setItem(row, QueueDetailsColumn, createQueueItem(QString(), false));
+        } else {
+            auto *detailsItem = createQueueItem(details, false);
+            detailsItem->setToolTip(details);
+            m_queueTable->setItem(row, QueueDetailsColumn, detailsItem);
+        }
 
         if (job.id == selectedId) {
             m_queueTable->selectRow(row);
@@ -1010,8 +1120,6 @@ bool MainWidget::validateQueueBeforeStart() {
     QSet<QString> outputPaths;
     QStringList existingOutputs;
     const bool separationRequested = m_separatorEnabledCheck->isChecked();
-    const bool keepInstrumental =
-        m_separatorOutputCombo->currentData().toString() == QStringLiteral("vocals_instrumental");
     const auto registerOutputPath = [&](const QString &path, const QString &duplicateMessage) {
         QString normalized = QDir::cleanPath(QFileInfo(path).absoluteFilePath());
 #ifdef Q_OS_WIN
@@ -1049,18 +1157,6 @@ bool MainWidget::validateQueueBeforeStart() {
 
         if (!registerOutputPath(job.outputPath, tr("Multiple tasks use the same output MIDI path: %1"))) {
             return false;
-        }
-        if (separationRequested && job.status == QueueJobStatus::Pending) {
-            const QString basePath = outputInfo.absolutePath() + QDir::separator() + outputInfo.completeBaseName();
-            if (!registerOutputPath(basePath + QStringLiteral("_vocals.wav"),
-                                    tr("Multiple tasks use the same separated audio path: %1"))) {
-                return false;
-            }
-            if (keepInstrumental &&
-                !registerOutputPath(basePath + QStringLiteral("_instrumental.wav"),
-                                    tr("Multiple tasks use the same separated audio path: %1"))) {
-                return false;
-            }
         }
     }
 
@@ -1105,6 +1201,10 @@ void MainWidget::startQueue() {
     const ProcessingParameters sharedParameters = currentProcessingParameters();
     const bool separationEnabled = m_separatorEnabledCheck->isChecked();
     const SeparatorWorkerConfiguration separatorConfiguration = currentSeparatorConfiguration();
+    const QString separatorWorkspaceRoot = WorkspaceManager::separatorDirectory(m_settings);
+    const bool keepIntermediates = WorkspaceManager::keepIntermediates(m_settings);
+    const bool keepInstrumental =
+        separatorConfiguration.outputMode == QStringLiteral("vocals_instrumental");
     struct QueueRuntimeState {
         bool modelAttempted = false;
         bool modelReady = false;
@@ -1125,17 +1225,22 @@ void MainWidget::startQueue() {
 
     const bool started = m_queueController->startPipeline(
         separationEnabled,
-        [this, separatorConfiguration, separatorRuntime](QueueJob &job,
-                                                         const InferenceQueueController::ProgressCallback &progress,
-                                                         QString &error) {
-            const QFileInfo midiOutput(job.outputPath);
+        [this, separatorConfiguration, separatorRuntime, separatorWorkspaceRoot, keepIntermediates,
+         keepInstrumental](QueueJob &job, const InferenceQueueController::ProgressCallback &progress,
+                           QString &error) {
+            const QString jobWorkspace = WorkspaceManager::createManagedDirectory(
+                separatorWorkspaceRoot, QFileInfo(job.inputPath).completeBaseName(), error);
+            if (jobWorkspace.isEmpty()) {
+                setRuntimeStatus(tr("Source separation failed."), false);
+                return false;
+            }
             if (!separatorRuntime->startAttempted) {
                 separatorRuntime->startAttempted = true;
                 m_game->terminate();
                 m_loadedModelSelection.reset();
                 separatorRuntime->client = std::make_unique<SeparatorWorkerClient>();
                 separatorRuntime->ready = separatorRuntime->client->start(
-                    separatorConfiguration, midiOutput.absolutePath(), separatorRuntime->startError,
+                    separatorConfiguration, jobWorkspace, separatorRuntime->startError,
                     [this](const SeparatorWorkerStage stage) {
                         if (stage == SeparatorWorkerStage::PreparingRuntime) {
                             setRuntimeStatus(tr("Preparing the separator runtime..."), true);
@@ -1148,27 +1253,35 @@ void MainWidget::startQueue() {
             }
             if (!separatorRuntime->ready) {
                 error = separatorRuntime->startError;
+                WorkspaceManager::removeManagedDirectory(jobWorkspace);
                 setRuntimeStatus(tr("Source separation failed."), false);
                 return false;
             }
 
             setRuntimeStatus(tr("Separating vocals..."), false);
             SeparatorWorkerOutput output;
-            if (!separatorRuntime->client->separate(job.inputPath, midiOutput.absolutePath(),
-                                                     midiOutput.completeBaseName(), output, error)) {
+            if (!separatorRuntime->client->separate(job.inputPath, jobWorkspace,
+                                                     QFileInfo(job.inputPath).completeBaseName(), output, error)) {
+                WorkspaceManager::removeManagedDirectory(jobWorkspace);
                 setRuntimeStatus(tr("Source separation failed."), false);
                 return false;
             }
             job.vocalsPath = output.vocalsPath;
-            job.instrumentalPath = output.instrumentalPath;
+            job.managedArtifacts = {output.vocalsPath};
+            if (!output.instrumentalPath.isEmpty() && keepIntermediates && keepInstrumental) {
+                job.instrumentalPath = output.instrumentalPath;
+                job.managedArtifacts.push_back(output.instrumentalPath);
+            } else if (!output.instrumentalPath.isEmpty()) {
+                WorkspaceManager::removeManagedArtifacts({output.instrumentalPath});
+                job.instrumentalPath.clear();
+            }
             if (progress) {
                 progress(100);
             }
             return true;
         },
-        [this, model, sharedParameters, runtime, separatorRuntime](const QueueJob &job,
-                                                                  const InferenceQueueController::ProgressCallback &progress,
-                                                                  QString &error) {
+        [this, model, sharedParameters, runtime, separatorRuntime, keepIntermediates](
+            QueueJob &job, const InferenceQueueController::ProgressCallback &progress, QString &error) {
             if (!separatorRuntime->released) {
                 separatorRuntime->released = true;
                 if (separatorRuntime->client) {
@@ -1203,19 +1316,41 @@ void MainWidget::startQueue() {
 
             std::vector<Game::GameMidi> midis;
             std::string message;
+            Game::MidiFailureDetails failureDetails;
             const QString inferenceInput = !job.vocalsPath.isEmpty() ? job.vocalsPath : job.inputPath;
             setRuntimeStatus(tr("Generating MIDI..."), false);
             const bool success = m_game->get_midi(
                 std::filesystem::path(inferenceInput.toLocal8Bit().toStdString()), midis, tempo, message,
-                progress, max_audio_seg_length);
+                progress, max_audio_seg_length, &failureDetails);
             if (!success) {
+                if (failureDetails.reason == Game::MidiFailureReason::SliceTooLong) {
+                    job.failureReason = QueueFailureReason::SliceTooLong;
+                    job.failedSliceStartSeconds = failureDetails.sliceStartSeconds;
+                    job.failedSliceEndSeconds = failureDetails.sliceEndSeconds;
+                }
                 error = QString::fromLocal8Bit(message);
                 setRuntimeStatus(tr("MIDI generation failed."), false);
                 return false;
             }
 
-            makeMidiFile(std::filesystem::path(job.outputPath.toLocal8Bit().toStdString()), std::move(midis),
-                         tempo);
+            if (!makeMidiFile(std::filesystem::path(job.outputPath.toLocal8Bit().toStdString()), std::move(midis),
+                              tempo)) {
+                error = tr("Failed to save the MIDI file: %1").arg(job.outputPath);
+                setRuntimeStatus(tr("MIDI generation failed."), false);
+                return false;
+            }
+            if (!keepIntermediates) {
+                const bool vocalsManaged = WorkspaceManager::isManagedArtifact(job.vocalsPath);
+                const bool instrumentalManaged = WorkspaceManager::isManagedArtifact(job.instrumentalPath);
+                WorkspaceManager::removeManagedArtifacts(job.managedArtifacts);
+                job.managedArtifacts.clear();
+                if (vocalsManaged) {
+                    job.vocalsPath.clear();
+                }
+                if (instrumentalManaged) {
+                    job.instrumentalPath.clear();
+                }
+            }
             return true;
         });
 

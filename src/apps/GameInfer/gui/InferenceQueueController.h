@@ -4,6 +4,7 @@
 #include <QFuture>
 #include <QObject>
 #include <QString>
+#include <QStringList>
 #include <QVector>
 
 #include <atomic>
@@ -24,6 +25,11 @@ enum class QueueFailureStage {
     Midi,
 };
 
+enum class QueueFailureReason {
+    None,
+    SliceTooLong,
+};
+
 struct QueueJob {
     quint64 id = 0;
     QString inputPath;
@@ -37,6 +43,10 @@ struct QueueJob {
     QString error;
     QString vocalsPath;
     QString instrumentalPath;
+    QueueFailureReason failureReason = QueueFailureReason::None;
+    double failedSliceStartSeconds = 0.0;
+    double failedSliceEndSeconds = 0.0;
+    QStringList managedArtifacts;
 };
 
 class InferenceQueueController final : public QObject {
@@ -44,7 +54,7 @@ class InferenceQueueController final : public QObject {
 
 public:
     using ProgressCallback = std::function<void(int)>;
-    using Processor = std::function<bool(const QueueJob &, const ProgressCallback &, QString &)>;
+    using Processor = std::function<bool(QueueJob &, const ProgressCallback &, QString &)>;
     using SeparationProcessor = std::function<bool(QueueJob &, const ProgressCallback &, QString &)>;
 
     explicit InferenceQueueController(QObject *parent = nullptr);
@@ -56,6 +66,7 @@ public:
     quint64 addJob(QueueJob job);
     bool updateJob(quint64 id, const QueueJob &job);
     bool removeJob(quint64 id);
+    bool replaceFailedJobWithSlices(quint64 id, QueueJob first, QueueJob second);
     bool moveJob(quint64 id, int offset);
     int applyDefaultsToEditableJobs(int languageId, const QString &languageName, double tempo);
     void resetFailedJobs();
@@ -75,6 +86,7 @@ private:
     void updateJobState(quint64 id, QueueJobStatus status, int progress, const QString &error,
                         QueueFailureStage failureStage = QueueFailureStage::None);
     void updateJobSeparation(quint64 id, bool success, const QueueJob &job, const QString &error);
+    void updateJobMidi(quint64 id, bool success, const QueueJob &job, const QString &error);
     void updateJobProgress(quint64 id, int progress);
 
     QVector<QueueJob> m_jobs;

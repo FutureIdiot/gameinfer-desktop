@@ -110,6 +110,40 @@ namespace
         const auto &job = controller.jobs().front();
         return job.status == QueueJobStatus::Separated && job.vocalsPath == "source_vocals.wav";
     }
+
+    bool testManualSplitReplacement() {
+        InferenceQueueController controller;
+        const quint64 id = controller.addJob(makeJob("source.wav", "source.mid"));
+        controller.startPipeline(
+            false, {},
+            [](QueueJob &job, const InferenceQueueController::ProgressCallback &, QString &error) {
+                job.failureReason = QueueFailureReason::SliceTooLong;
+                job.failedSliceStartSeconds = 10.0;
+                job.failedSliceEndSeconds = 82.0;
+                error = "slice too long";
+                return false;
+            });
+        if (!waitForQueue(controller)) {
+            return false;
+        }
+        const auto &failed = controller.jobs().front();
+        if (failed.failureReason != QueueFailureReason::SliceTooLong || failed.failedSliceStartSeconds != 10.0 ||
+            failed.failedSliceEndSeconds != 82.0) {
+            return false;
+        }
+
+        QueueJob first = makeJob("part_01.wav", "part_01.mid");
+        QueueJob second = makeJob("part_02.wav", "part_02.mid");
+        first.managedArtifacts = {first.inputPath};
+        second.managedArtifacts = {second.inputPath};
+        if (!controller.replaceFailedJobWithSlices(id, first, second) || controller.jobs().size() != 2) {
+            return false;
+        }
+        return controller.jobs()[0].status == QueueJobStatus::Separated &&
+               controller.jobs()[0].vocalsPath == "part_01.wav" &&
+               controller.jobs()[1].status == QueueJobStatus::Separated &&
+               controller.jobs()[1].vocalsPath == "part_02.wav";
+    }
 }
 
 int main(int argc, char **argv) {
@@ -124,6 +158,10 @@ int main(int argc, char **argv) {
     }
     if (!testMidiRetryKeepsSeparatedVocals()) {
         std::cerr << "MIDI retry artifact test failed" << std::endl;
+        return 1;
+    }
+    if (!testManualSplitReplacement()) {
+        std::cerr << "manual split replacement test failed" << std::endl;
         return 1;
     }
     std::cout << "GameInfer queue tests passed" << std::endl;

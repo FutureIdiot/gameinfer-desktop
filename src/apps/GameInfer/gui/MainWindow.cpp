@@ -69,6 +69,9 @@ void MainWindow::setupStatusBar() {
 
 void MainWindow::setupLanguageMenu() {
     m_settingsMenu = menuBar()->addMenu(QString());
+    m_workspaceAction = m_settingsMenu->addAction(QString());
+    connect(m_workspaceAction, &QAction::triggered, m_mainWidget, &MainWidget::showWorkspaceSettings);
+    m_settingsMenu->addSeparator();
     m_languageMenu = m_settingsMenu->addMenu(QString());
     m_languageActionGroup = new QActionGroup(this);
     m_languageActionGroup->setExclusive(true);
@@ -112,6 +115,7 @@ void MainWindow::retranslateUi() {
     setWindowTitle(tr("GameInfer - Audio to MIDI"));
     if (m_settingsMenu != nullptr) {
         m_settingsMenu->setTitle(tr("Settings"));
+        m_workspaceAction->setText(tr("Workspace paths..."));
         m_languageMenu->setTitle(tr("Interface language"));
         m_chineseAction->setText(tr("Simplified Chinese"));
         m_englishAction->setText(tr("English"));

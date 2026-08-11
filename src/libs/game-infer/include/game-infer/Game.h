@@ -17,6 +17,17 @@ namespace Game
         int duration;
     };
 
+    enum class MidiFailureReason {
+        None,
+        SliceTooLong,
+    };
+
+    struct MidiFailureDetails {
+        MidiFailureReason reason = MidiFailureReason::None;
+        double sliceStartSeconds = 0.0;
+        double sliceEndSeconds = 0.0;
+    };
+
     enum class ExecutionProvider { CPU, CUDA, DML };
 
     class GameModel; // Forward declaration
@@ -32,7 +43,8 @@ namespace Game
         void terminate() const;
 
         bool get_midi(const std::filesystem::path &filepath, std::vector<GameMidi> &midis, float tempo,
-                      std::string &msg, const std::function<void(int)> &progressChanged, int max_audio_length) const;
+                      std::string &msg, const std::function<void(int)> &progressChanged, int max_audio_length,
+                      MidiFailureDetails *failureDetails = nullptr) const;
 
         // Methods to update model parameters
         void set_seg_threshold(float threshold) const;

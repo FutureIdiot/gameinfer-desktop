@@ -12,6 +12,7 @@
 #include <QProgressBar>
 #include <QPushButton>
 #include <QSettings>
+#include <QSet>
 #include <QSpinBox>
 #include <QTableWidget>
 #include <QWidget>
@@ -39,6 +40,7 @@ class MainWidget : public QWidget {
 public:
     explicit MainWidget(QSettings *settings, QWidget *parent = nullptr);
     ~MainWidget() override;
+    void showWorkspaceSettings();
 
 private slots:
     void browseModelPath();
@@ -114,6 +116,8 @@ private:
     [[nodiscard]] bool isQueueDropPosition(const QPointF &position) const;
     void addBatchJobsFromFiles(const QStringList &files);
     void updateQueueJobFromRow(int row);
+    void manualSliceFailedJob(quint64 id);
+    [[nodiscard]] QSet<QString> protectedWorkspaceArtifacts() const;
     [[nodiscard]] bool validateQueueBeforeStart();
     [[nodiscard]] SeparatorWorkerConfiguration currentSeparatorConfiguration() const;
     [[nodiscard]] QString separatorWorkerScriptPath() const;

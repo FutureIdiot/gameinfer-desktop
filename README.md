@@ -1,5 +1,7 @@
 # GameInfer Desktop
 
+[English](README.md) | [简体中文](README.zh-CN.md)
+
 GameInfer Desktop is a standalone desktop workflow for converting vocal audio into MIDI with [OpenVPI GAME](https://github.com/openvpi/GAME). It adds a queue-oriented Qt interface and a managed source-separation step to the GameInfer application originally developed in [OpenVPI dataset-tools](https://github.com/openvpi/dataset-tools).
 
 This repository is maintained by FutureIdiot as a derivative distribution. It is not an official OpenVPI release. See [UPSTREAM.md](UPSTREAM.md) for the exact source lineage and [NOTICE](NOTICE) for attribution.

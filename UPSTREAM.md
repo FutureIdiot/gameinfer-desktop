@@ -1,5 +1,7 @@
 # Upstream lineage
 
+[English](UPSTREAM.md) | [简体中文](UPSTREAM.zh-CN.md)
+
 GameInfer Desktop was extracted from the GameInfer application in [openvpi/dataset-tools](https://github.com/openvpi/dataset-tools), which is licensed under Apache-2.0. The inference implementation and distributed model format originate from [openvpi/GAME](https://github.com/openvpi/GAME), licensed under MIT.
 
 The standalone repository intentionally keeps only the application and libraries needed to build GameInfer. The original `FutureIdiot/dataset-tools` fork remains available for syncing with OpenVPI and preparing upstream contributions.

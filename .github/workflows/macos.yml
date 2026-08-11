@@ -1,0 +1,132 @@
+name: Build macOS package
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gameinfer-macos-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BUILD_TYPE: Release
+  MODEL_ARCHIVE_NAME: GAME-1.0.3-small-onnx.zip
+  MODEL_ARCHIVE_SIZE: "45676364"
+  MODEL_ARCHIVE_SHA256: 00ba0c64115b6b874d9ea4afd3e6cf822abda2a04e52569233b0a044fd40e4e8
+  MODEL_URL: https://github.com/openvpi/GAME/releases/download/v1.0.3/GAME-1.0.3-small-onnx.zip
+  SEPARATOR_MODEL_NAME: Kim_Vocal_2.onnx
+  SEPARATOR_MODEL_SIZE: "66759214"
+  SEPARATOR_MODEL_SHA256: ce74ef3b6a6024ce44211a07be9cf8bc6d87728cc852a68ab34eb8e58cde9c8b
+  SEPARATOR_MODEL_URL: https://github.com/TRvlvr/model_repo/releases/download/all_public_uvr_models/Kim_Vocal_2.onnx
+
+jobs:
+  package:
+    name: macOS arm64
+    runs-on: macos-15
+    timeout-minutes: 90
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install separator runtime launcher
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.11.32"
+          enable-cache: true
+          cache-dependency-glob: src/apps/GameInfer/workers/uv.lock
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.9.3"
+
+      - name: Install vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: 14bb451131ccf6be50a63a8d9dfe7980e46b5958
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          "$VCPKG_ROOT/vcpkg" install \
+            --x-manifest-root="$GITHUB_WORKSPACE" \
+            --x-install-root="$GITHUB_WORKSPACE/vcpkg_installed" \
+            --triplet=arm64-osx
+
+      - name: Install ONNX Runtime
+        shell: bash
+        working-directory: src/libs
+        run: cmake -Dep=cpu -P ../../scripts/setup-onnxruntime.cmake
+
+      - name: Download and verify bundled models
+        shell: bash
+        run: |
+          mkdir -p models
+          curl --fail --location --retry 3 "$MODEL_URL" --output "$RUNNER_TEMP/$MODEL_ARCHIVE_NAME"
+          test "$(stat -f %z "$RUNNER_TEMP/$MODEL_ARCHIVE_NAME")" = "$MODEL_ARCHIVE_SIZE"
+          echo "$MODEL_ARCHIVE_SHA256  $RUNNER_TEMP/$MODEL_ARCHIVE_NAME" | shasum -a 256 -c -
+          ditto -x -k "$RUNNER_TEMP/$MODEL_ARCHIVE_NAME" models
+
+          curl --fail --location --retry 3 "$SEPARATOR_MODEL_URL" --output "models/$SEPARATOR_MODEL_NAME"
+          test "$(stat -f %z "models/$SEPARATOR_MODEL_NAME")" = "$SEPARATOR_MODEL_SIZE"
+          echo "$SEPARATOR_MODEL_SHA256  models/$SEPARATOR_MODEL_NAME" | shasum -a 256 -c -
+
+      - name: Configure and build
+        shell: bash
+        run: |
+          cmake -S . -B build-macos -G Ninja \
+            -DBUILD_TESTS:BOOL=ON \
+            -DCMAKE_BUILD_TYPE="$BUILD_TYPE" \
+            -DCMAKE_PREFIX_PATH="$QT_ROOT_DIR/lib/cmake/Qt6" \
+            -DCMAKE_TOOLCHAIN_FILE="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" \
+            -DVCPKG_INSTALLED_DIR="$GITHUB_WORKSPACE/vcpkg_installed" \
+            -DVCPKG_TARGET_TRIPLET=arm64-osx \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DGAMEINFER_REQUIRE_SEPARATOR_UV:BOOL=ON \
+            -DGAMEINFER_DEFAULT_GAME_MODEL_DIR="$GITHUB_WORKSPACE/models/GAME-1.0.3-small-onnx" \
+            -DGAMEINFER_REQUIRE_DEFAULT_GAME_MODEL:BOOL=ON \
+            -DGAMEINFER_SEPARATOR_DEFAULT_MODEL="$GITHUB_WORKSPACE/models/$SEPARATOR_MODEL_NAME" \
+            -DGAMEINFER_REQUIRE_SEPARATOR_DEFAULT_MODEL:BOOL=ON
+          cmake --build build-macos --target GameInfer TestGameInferQueue TestGameInferWorkspace TestGameInferManualSlice
+
+      - name: Run focused tests
+        shell: bash
+        run: |
+          ./build-macos/bin/TestGameInferQueue
+          QT_QPA_PLATFORM=offscreen ./build-macos/bin/TestGameInferWorkspace
+          QT_QPA_PLATFORM=offscreen ./build-macos/bin/TestGameInferManualSlice
+
+      - name: Assemble app bundle
+        shell: bash
+        run: |
+          mkdir -p package
+          ditto build-macos/bin/GameInfer.app package/GameInfer.app
+
+          "$QT_ROOT_DIR/bin/macdeployqt" package/GameInfer.app \
+            -no-plugins \
+            -no-codesign \
+            -executable=package/GameInfer.app/Contents/MacOS/GameInfer
+
+          mkdir -p package/GameInfer.app/Contents/PlugIns/platforms
+          mkdir -p package/GameInfer.app/Contents/PlugIns/styles
+          cp "$QT_ROOT_DIR/plugins/platforms/libqcocoa.dylib" package/GameInfer.app/Contents/PlugIns/platforms/
+          cp "$QT_ROOT_DIR/plugins/styles/libqmacstyle.dylib" package/GameInfer.app/Contents/PlugIns/styles/
+
+          codesign --force --deep --sign - package/GameInfer.app
+          codesign --verify --deep --strict package/GameInfer.app
+          test -f package/GameInfer.app/Contents/Resources/model/GAME-1.0.3-small-onnx/config.json
+          test -f "package/GameInfer.app/Contents/Resources/model/separator/$SEPARATOR_MODEL_NAME"
+          test -f package/GameInfer.app/Contents/Resources/separator-runtime/uv
+          test -f package/GameInfer.app/Contents/Resources/separator-worker/.python-version
+
+      - name: Upload package
+        uses: actions/upload-artifact@v4
+        with:
+          name: GameInfer-macOS-arm64-${{ github.sha }}
+          path: package/GameInfer.app
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14

@@ -2,8 +2,6 @@ name: Build Windows package
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
 
 permissions:
   contents: read
@@ -18,6 +16,10 @@ env:
   MODEL_ARCHIVE_SIZE: "45676364"
   MODEL_ARCHIVE_SHA256: 00ba0c64115b6b874d9ea4afd3e6cf822abda2a04e52569233b0a044fd40e4e8
   MODEL_URL: https://github.com/openvpi/GAME/releases/download/v1.0.3/GAME-1.0.3-small-onnx.zip
+  SEPARATOR_MODEL_NAME: Kim_Vocal_2.onnx
+  SEPARATOR_MODEL_SIZE: "66759214"
+  SEPARATOR_MODEL_SHA256: ce74ef3b6a6024ce44211a07be9cf8bc6d87728cc852a68ab34eb8e58cde9c8b
+  SEPARATOR_MODEL_URL: https://github.com/TRvlvr/model_repo/releases/download/all_public_uvr_models/Kim_Vocal_2.onnx
 
 jobs:
   package:
@@ -72,6 +74,25 @@ jobs:
           cmake -Dep=dml -P ../../scripts/setup-onnxruntime.cmake
           if ($LASTEXITCODE -ne 0) { throw "ONNX Runtime setup failed: $LASTEXITCODE" }
 
+      - name: Download and verify bundled models
+        shell: pwsh
+        run: |
+          $modelRoot = Join-Path $env:GITHUB_WORKSPACE "models"
+          New-Item -ItemType Directory -Force $modelRoot | Out-Null
+
+          $gameArchive = Join-Path $env:RUNNER_TEMP $env:MODEL_ARCHIVE_NAME
+          Invoke-WebRequest -Uri $env:MODEL_URL -OutFile $gameArchive
+          if ((Get-Item $gameArchive).Length -ne [int64]$env:MODEL_ARCHIVE_SIZE) { throw "GAME model size mismatch" }
+          $gameHash = (Get-FileHash $gameArchive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($gameHash -ne $env:MODEL_ARCHIVE_SHA256) { throw "GAME model hash mismatch" }
+          Expand-Archive $gameArchive $modelRoot -Force
+
+          $separatorModel = Join-Path $modelRoot $env:SEPARATOR_MODEL_NAME
+          Invoke-WebRequest -Uri $env:SEPARATOR_MODEL_URL -OutFile $separatorModel
+          if ((Get-Item $separatorModel).Length -ne [int64]$env:SEPARATOR_MODEL_SIZE) { throw "Separator model size mismatch" }
+          $separatorHash = (Get-FileHash $separatorModel -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($separatorHash -ne $env:SEPARATOR_MODEL_SHA256) { throw "Separator model hash mismatch" }
+
       - name: Configure and build
         shell: pwsh
         run: |
@@ -83,21 +104,14 @@ jobs:
             -DVCPKG_INSTALLED_DIR="$env:GITHUB_WORKSPACE/vcpkg_installed" `
             -DVCPKG_TARGET_TRIPLET=x64-windows `
             -DONNXRUNTIME_ENABLE_DML:BOOL=ON `
-            -DGAMEINFER_REQUIRE_SEPARATOR_UV:BOOL=ON
+            -DGAMEINFER_REQUIRE_SEPARATOR_UV:BOOL=ON `
+            -DGAMEINFER_DEFAULT_GAME_MODEL_DIR="$env:GITHUB_WORKSPACE/models/GAME-1.0.3-small-onnx" `
+            -DGAMEINFER_REQUIRE_DEFAULT_GAME_MODEL:BOOL=ON `
+            -DGAMEINFER_SEPARATOR_DEFAULT_MODEL="$env:GITHUB_WORKSPACE/models/$env:SEPARATOR_MODEL_NAME" `
+            -DGAMEINFER_REQUIRE_SEPARATOR_DEFAULT_MODEL:BOOL=ON
           if ($LASTEXITCODE -ne 0) { throw "CMake configure failed: $LASTEXITCODE" }
           cmake --build build-win --target GameInfer
           if ($LASTEXITCODE -ne 0) { throw "GameInfer build failed: $LASTEXITCODE" }
-
-      - name: Download official GAME small model
-        shell: pwsh
-        run: |
-          $archive = Join-Path $env:RUNNER_TEMP $env:MODEL_ARCHIVE_NAME
-          Invoke-WebRequest -Uri $env:MODEL_URL -OutFile $archive
-          if ((Get-Item $archive).Length -ne [int64]$env:MODEL_ARCHIVE_SIZE) { throw "GAME model size mismatch" }
-          $hash = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($hash -ne $env:MODEL_ARCHIVE_SHA256) { throw "GAME model hash mismatch" }
-          New-Item -ItemType Directory -Force package/model | Out-Null
-          Expand-Archive $archive package/model -Force
 
       - name: Assemble portable package
         shell: pwsh
@@ -112,6 +126,17 @@ jobs:
           & (Join-Path $env:QT_ROOT_DIR "bin/windeployqt.exe") --release --libdir $root --plugindir (Join-Path $root "plugins") --no-translations --no-system-d3d-compiler --no-opengl-sw --force $exe
           if ($LASTEXITCODE -ne 0) { throw "windeployqt failed: $LASTEXITCODE" }
           if (-not (Test-Path $exe)) { throw "GameInfer.exe was not produced" }
+          $required = @(
+            "model/GAME-1.0.3-small-onnx/config.json",
+            "model/GAME-1.0.3-small-onnx/encoder.onnx",
+            "model/separator/$env:SEPARATOR_MODEL_NAME",
+            "separator-runtime/uv.exe",
+            "separator-worker/.python-version",
+            "plugins/platforms/qwindows.dll"
+          )
+          foreach ($path in $required) {
+            if (-not (Test-Path (Join-Path $root $path))) { throw "Required package file is missing: $path" }
+          }
 
       - name: Upload package
         uses: actions/upload-artifact@v4
@@ -121,4 +146,3 @@ jobs:
           include-hidden-files: true
           if-no-files-found: error
           retention-days: 14
-

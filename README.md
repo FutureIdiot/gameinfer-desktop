@@ -12,6 +12,10 @@ On first use, source separation installs its locked Python environment and downl
 
 Known limitation in `v0.1.0`: if a separated vocal still contains a continuous silence-sliced segment longer than 60 seconds, MIDI conversion may fail. Manual waveform cropping is not included in that release.
 
+## Current main branch
+
+The current development branch adds a workspace for intermediate separation/slicing files and a waveform dialog for manually splitting a failed segment. Confirming a split replaces the failed source with two shorter queue items; obsolete working files can be cleared from the workspace settings.
+
 ## Source layout
 
 - `src/apps/GameInfer`: desktop application and managed separator worker
@@ -22,7 +26,7 @@ Known limitation in `v0.1.0`: if a separated vocal still contains a continuous s
 
 ## Building
 
-The project requires Qt 6, CMake, Ninja, vcpkg dependencies from `vcpkg.json`, ONNX Runtime, and `uv`. The CI workflows in `.github/workflows` are the reference Windows and macOS builds.
+The project requires Qt 6, CMake, Ninja, vcpkg dependencies from `vcpkg.json`, ONNX Runtime, and `uv`. The CI workflows in `.github/workflows` are the reference Windows and macOS builds. CI artifacts are development builds; published Releases are promoted separately after validation.
 
 ONNX Runtime is prepared beneath `src/libs/onnxruntime` with:
 
@@ -36,4 +40,3 @@ Use `-Dep=dml` on Windows for DirectML.
 ## License
 
 Unless a file states otherwise, this derivative repository is distributed under the Apache License 2.0. Bundled and third-party components retain their respective licenses.
-

@@ -10,7 +10,9 @@ The standalone repository intentionally keeps only the application and libraries
 - Source separation pipeline begins at FutureIdiot dataset-tools commit: `a898dc8`
 - PC-validated Windows package source: `b7dda56`
 - Equivalent stabilized application source on the integration branch: `215a86c`
+- Default separator model/setup UI source: `633427d`
+- Manual waveform slicing and workspace source: `a096a1a`
+- macOS resource packaging source: `732e62e`
 - Standalone extraction paths: `src/apps/GameInfer`, `src/libs/game-infer`, `src/libs/audio-util`, `src/libs/qsmedia`, `src/libs/sdlplayback`, `src/tests`, and the required build scripts
 
 Future standalone commits retain the corresponding source commit identifiers in their messages or documentation so changes can be traced back to the dataset-tools integration branch.
-

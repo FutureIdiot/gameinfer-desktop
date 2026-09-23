@@ -108,7 +108,6 @@ jobs:
 
           "$QT_ROOT_DIR/bin/macdeployqt" package/GameInfer.app \
             -no-plugins \
-            -no-codesign \
             -executable=package/GameInfer.app/Contents/MacOS/GameInfer
 
           mkdir -p package/GameInfer.app/Contents/PlugIns/platforms

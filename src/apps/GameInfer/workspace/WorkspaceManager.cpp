@@ -143,7 +143,9 @@ void WorkspaceManager::removeManagedArtifacts(const QStringList &paths) {
 
 void WorkspaceManager::removeManagedDirectory(const QString &directory) {
     QFile marker(QDir(directory).filePath(MarkerName));
-    if (marker.open(QIODevice::ReadOnly) && marker.readAll() == MarkerContents) {
+    const bool isManaged = marker.open(QIODevice::ReadOnly) && marker.readAll() == MarkerContents;
+    marker.close();
+    if (isManaged) {
         QDir(directory).removeRecursively();
     }
 }
@@ -167,7 +169,9 @@ WorkspaceCleanupResult WorkspaceManager::clearUnused(const QStringList &roots,
         const QFileInfoList children = rootDirectory.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot);
         for (const QFileInfo &child : children) {
             QFile marker(QDir(child.absoluteFilePath()).filePath(MarkerName));
-            if (!marker.open(QIODevice::ReadOnly) || marker.readAll() != MarkerContents) {
+            const bool isManaged = marker.open(QIODevice::ReadOnly) && marker.readAll() == MarkerContents;
+            marker.close();
+            if (!isManaged) {
                 continue;
             }
 

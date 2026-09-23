@@ -1,0 +1,15 @@
+# Copied from ChorusKit
+function(parse_version _prefix _version)
+    string(REPLACE "." ";" _components "${_version}")
+    list(LENGTH _components _component_count)
+
+    foreach(_i RANGE 1 4)
+        math(EXPR _index "${_i} - 1")
+        if(_index LESS _component_count)
+            list(GET _components ${_index} _value)
+        else()
+            set(_value 0)
+        endif()
+        set(${_prefix}_${_i} ${_value} PARENT_SCOPE)
+    endforeach()
+endfunction()

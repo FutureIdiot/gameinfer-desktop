@@ -6,7 +6,7 @@ GameInfer Desktop 是一套使用 [OpenVPI GAME](https://github.com/openvpi/GAME
 
 本仓库由 FutureIdiot 作为衍生发行版独立维护，并非 OpenVPI 官方发行版。准确的代码来源参见 [UPSTREAM.zh-CN.md](UPSTREAM.zh-CN.md)，归属声明参见 [NOTICE](NOTICE)。
 
-## 初始版本
+## 版本
 
 `v0.1.0` Windows 软件包是首个经过 PC 实际验证的版本。它内置 GAME 1.0.3 small ONNX 模型、托管式分离运行时以及 DirectML 支持，不需要用户另外安装系统 Python。
 
@@ -14,9 +14,7 @@ GameInfer Desktop 是一套使用 [OpenVPI GAME](https://github.com/openvpi/GAME
 
 `v0.1.0` 的已知限制：如果分离后的人声仍包含无法通过静音检测切到 60 秒以内的连续片段，MIDI 转换可能失败。该版本尚未包含手动波形裁切功能。
 
-## 当前 main 分支
-
-当前开发分支增加了用于保存分离及切片中间产物的工作区，以及手动切分失败片段的波形对话框。确认切分后，失败的源文件会被两个较短的队列任务替代；工作区设置中可以一键清理不再需要的中间产物。
+`v0.2.0` 增加了用于保存分离及切片中间产物的工作区，以及手动切分失败片段的波形对话框。确认切分后，失败的源文件会被两个较短的队列任务替代；工作区设置中可以一键清理不再需要的中间产物。Windows x64 与 macOS arm64 软件包来自同一个源码提交。
 
 ## 源码结构
 

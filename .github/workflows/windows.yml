@@ -12,6 +12,7 @@ concurrency:
 
 env:
   BUILD_TYPE: Release
+  PACKAGE_VERSION: "0.2.0"
   MODEL_ARCHIVE_NAME: GAME-1.0.3-small-onnx.zip
   MODEL_ARCHIVE_SIZE: "45676364"
   MODEL_ARCHIVE_SHA256: 00ba0c64115b6b874d9ea4afd3e6cf822abda2a04e52569233b0a044fd40e4e8
@@ -97,7 +98,7 @@ jobs:
         shell: pwsh
         run: |
           cmake -S . -B build-win -G Ninja `
-            -DBUILD_TESTS:BOOL=FALSE `
+            -DBUILD_TESTS:BOOL=TRUE `
             -DCMAKE_BUILD_TYPE="$env:BUILD_TYPE" `
             -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR/lib/cmake/Qt6" `
             -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" `
@@ -110,13 +111,26 @@ jobs:
             -DGAMEINFER_SEPARATOR_DEFAULT_MODEL="$env:GITHUB_WORKSPACE/models/$env:SEPARATOR_MODEL_NAME" `
             -DGAMEINFER_REQUIRE_SEPARATOR_DEFAULT_MODEL:BOOL=ON
           if ($LASTEXITCODE -ne 0) { throw "CMake configure failed: $LASTEXITCODE" }
-          cmake --build build-win --target GameInfer
+          cmake --build build-win --target GameInfer TestGameInferQueue TestGameInferWorkspace TestGameInferManualSlice
           if ($LASTEXITCODE -ne 0) { throw "GameInfer build failed: $LASTEXITCODE" }
+
+      - name: Run focused tests
+        shell: pwsh
+        run: |
+          $env:PATH = "$env:GITHUB_WORKSPACE\vcpkg_installed\x64-windows\bin;$env:QT_ROOT_DIR\bin;$env:PATH"
+          $env:QT_QPA_PLATFORM = "offscreen"
+          & "build-win/bin/TestGameInferQueue.exe"
+          if ($LASTEXITCODE -ne 0) { throw "Queue tests failed: $LASTEXITCODE" }
+          & "build-win/bin/TestGameInferWorkspace.exe"
+          if ($LASTEXITCODE -ne 0) { throw "Workspace tests failed: $LASTEXITCODE" }
+          & "build-win/bin/TestGameInferManualSlice.exe"
+          if ($LASTEXITCODE -ne 0) { throw "Manual slice tests failed: $LASTEXITCODE" }
 
       - name: Assemble portable package
         shell: pwsh
         run: |
           $root = Join-Path $env:GITHUB_WORKSPACE "package"
+          New-Item -ItemType Directory -Force $root | Out-Null
           Copy-Item "build-win/bin/*" $root -Recurse -Force
           Copy-Item "src/libs/onnxruntime/lib/*.dll" $root -Force
           Copy-Item "vcpkg_installed/x64-windows/bin/*.dll" $root -Force
@@ -138,11 +152,22 @@ jobs:
             if (-not (Test-Path (Join-Path $root $path))) { throw "Required package file is missing: $path" }
           }
 
+          $distributionName = "GameInfer-windows-x64-v$env:PACKAGE_VERSION"
+          $distributionRoot = Join-Path $env:GITHUB_WORKSPACE $distributionName
+          Move-Item $root $distributionRoot
+          & 7z a -tzip "$distributionName.zip" $distributionName
+          if ($LASTEXITCODE -ne 0) { throw "Archive creation failed: $LASTEXITCODE" }
+          & 7z t "$distributionName.zip"
+          if ($LASTEXITCODE -ne 0) { throw "Archive validation failed: $LASTEXITCODE" }
+          $digest = (Get-FileHash "$distributionName.zip" -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$digest  $distributionName.zip" | Set-Content "$distributionName.zip.sha256" -Encoding ascii
+
       - name: Upload package
         uses: actions/upload-artifact@v4
         with:
-          name: GameInfer-windows-x64-${{ github.sha }}
-          path: package
-          include-hidden-files: true
+          name: GameInfer-windows-x64-v${{ env.PACKAGE_VERSION }}
+          path: |
+            GameInfer-windows-x64-v${{ env.PACKAGE_VERSION }}.zip
+            GameInfer-windows-x64-v${{ env.PACKAGE_VERSION }}.zip.sha256
           if-no-files-found: error
           retention-days: 14

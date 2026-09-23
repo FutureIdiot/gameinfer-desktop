@@ -12,6 +12,7 @@ concurrency:
 
 env:
   BUILD_TYPE: Release
+  PACKAGE_VERSION: "0.2.0"
   MODEL_ARCHIVE_NAME: GAME-1.0.3-small-onnx.zip
   MODEL_ARCHIVE_SIZE: "45676364"
   MODEL_ARCHIVE_SHA256: 00ba0c64115b6b874d9ea4afd3e6cf822abda2a04e52569233b0a044fd40e4e8
@@ -122,11 +123,21 @@ jobs:
           test -f package/GameInfer.app/Contents/Resources/separator-runtime/uv
           test -f package/GameInfer.app/Contents/Resources/separator-worker/.python-version
 
+          distribution_name="GameInfer-macOS-arm64-v$PACKAGE_VERSION"
+          mkdir "$distribution_name"
+          ditto package/GameInfer.app "$distribution_name/GameInfer.app"
+          cp LICENSE "$distribution_name/LICENSE.txt"
+          cp NOTICE "$distribution_name/NOTICE.txt"
+          ditto -c -k --sequesterRsrc --keepParent "$distribution_name" "$distribution_name.zip"
+          unzip -t "$distribution_name.zip"
+          shasum -a 256 "$distribution_name.zip" > "$distribution_name.zip.sha256"
+
       - name: Upload package
         uses: actions/upload-artifact@v4
         with:
-          name: GameInfer-macOS-arm64-${{ github.sha }}
-          path: package/GameInfer.app
-          include-hidden-files: true
+          name: GameInfer-macOS-arm64-v${{ env.PACKAGE_VERSION }}
+          path: |
+            GameInfer-macOS-arm64-v${{ env.PACKAGE_VERSION }}.zip
+            GameInfer-macOS-arm64-v${{ env.PACKAGE_VERSION }}.zip.sha256
           if-no-files-found: error
           retention-days: 14

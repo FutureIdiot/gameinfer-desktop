@@ -6,7 +6,7 @@ GameInfer Desktop is a standalone desktop workflow for converting vocal audio in
 
 This repository is maintained by FutureIdiot as a derivative distribution. It is not an official OpenVPI release. See [UPSTREAM.md](UPSTREAM.md) for the exact source lineage and [NOTICE](NOTICE) for attribution.
 
-## Initial release
+## Releases
 
 The `v0.1.0` Windows package is the first PC-validated build. It includes the GAME 1.0.3 small ONNX model, a managed separator runtime, and DirectML support. No system Python installation is required.
 
@@ -14,9 +14,7 @@ On first use, source separation installs its locked Python environment and downl
 
 Known limitation in `v0.1.0`: if a separated vocal still contains a continuous silence-sliced segment longer than 60 seconds, MIDI conversion may fail. Manual waveform cropping is not included in that release.
 
-## Current main branch
-
-The current development branch adds a workspace for intermediate separation/slicing files and a waveform dialog for manually splitting a failed segment. Confirming a split replaces the failed source with two shorter queue items; obsolete working files can be cleared from the workspace settings.
+Version `v0.2.0` adds a workspace for intermediate separation/slicing files and a waveform dialog for manually splitting a failed segment. Confirming a split replaces the failed source with two shorter queue items; obsolete working files can be cleared from the workspace settings. Windows x64 and macOS arm64 packages are built from the same source revision.
 
 ## Source layout
 

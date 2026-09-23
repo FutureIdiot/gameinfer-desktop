@@ -7,7 +7,7 @@ int main(int argc, char *argv[]) {
 
     // Set application information
     app.setApplicationName("GameInfer");
-    app.setApplicationVersion("0.0.0.1");
+    app.setApplicationVersion(APP_VERSION);
     app.setOrganizationName("GameInfer Team");
 
     MainWindow window;

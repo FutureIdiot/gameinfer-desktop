@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(GameInferDesktop VERSION 0.1.0 LANGUAGES C CXX)
+project(GameInferDesktop VERSION 0.2.0 LANGUAGES C CXX)
+
+set(GAMEINFER_DESKTOP_VERSION ${PROJECT_VERSION})
 
 option(BUILD_TESTS "Build GameInfer tests" ON)
 
@@ -93,4 +95,3 @@ elseif (APPLE)
         install(CODE "file(COPY \"$<TARGET_BUNDLE_DIR:${_target}>\" DESTINATION \"${CMAKE_INSTALL_PREFIX}\")")
     endforeach ()
 endif ()
-

@@ -21,7 +21,7 @@ namespace
     const QByteArray MarkerContents = QByteArrayLiteral("GameInfer managed workspace\n");
 
     QString normalizedPath(const QString &path) {
-        QString result = QDir::cleanPath(QFileInfo(path).absoluteFilePath());
+        QString result = QDir::fromNativeSeparators(QDir::cleanPath(QFileInfo(path).absoluteFilePath()));
 #ifdef Q_OS_WIN
         result = result.toLower();
 #endif
@@ -29,7 +29,7 @@ namespace
     }
 
     bool containsPath(const QString &directory, const QString &path) {
-        const QString root = normalizedPath(directory) + QDir::separator();
+        const QString root = normalizedPath(directory) + QLatin1Char('/');
         return normalizedPath(path).startsWith(root);
     }
 

@@ -43,7 +43,12 @@ int main(int argc, char **argv) {
     if (!error.isEmpty() || result.filesRemoved != 1 || result.bytesRemoved != 1024 ||
         result.protectedDirectories != 1 || !QFile::exists(protectedFile) || QFile::exists(staleFile) ||
         !QFile::exists(unrelatedFile)) {
-        std::cerr << "safe cleanup test failed" << std::endl;
+        std::cerr << "safe cleanup test failed: error=" << error.toStdString()
+                  << ", filesRemoved=" << result.filesRemoved << ", bytesRemoved=" << result.bytesRemoved
+                  << ", protectedDirectories=" << result.protectedDirectories
+                  << ", protectedFileExists=" << QFile::exists(protectedFile)
+                  << ", staleFileExists=" << QFile::exists(staleFile)
+                  << ", unrelatedFileExists=" << QFile::exists(unrelatedFile) << std::endl;
         return 1;
     }
 
